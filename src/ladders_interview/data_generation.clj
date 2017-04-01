@@ -1,4 +1,4 @@
- (ns data-generation
+ (ns ladders-interview.data-generation
      (:require [clojure.spec :as s]
                [clojure.spec.gen :as gen]))
 
