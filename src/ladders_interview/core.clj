@@ -22,14 +22,14 @@
     (conj (pop q) n)))
 
 (defn xduce-rm&rm-l100
-  "stateful transducer which filters based on running mean
+  "stateful transducer which filters em-recs based on running mean of their :spam-score
 
   considers both the total running mean, and the running mean of the last 100 items"
   ([]
    (fn [xf]
-     (let [l-hund! (volatile! clojure.lang.PersistentQueue/EMPTY)
-           running-total! (volatile! 0)
-           running-count! (volatile! 0)]
+     (let [l-hund! (atom clojure.lang.PersistentQueue/EMPTY)
+           running-total! (atom 0)
+           running-count! (atom 0)]
        (fn
          ([] (xf))
          ([result] (xf result))
@@ -41,27 +41,31 @@
                 new-r-count (inc r-count)
                 new-r-total (+ r-total (:spam-score input))]
             (if
-              (and (< 0.1 (mean new-last100))
-                   (< 0.05 (/ new-r-total
-                              new-r-count)))
-              (do (vreset! l-hund! new-last100)
-                  (vreset! running-total! new-r-total)
-                  (vreset! running-count! new-r-count)
+              (and
+                (< 0.05 (/ new-r-total
+                          new-r-count))
+                (< 0.1 (mean new-last100))
+                   )
+              (do (reset! l-hund! new-last100)
+                  (reset! running-total! new-r-total)
+                  (reset! running-count! new-r-count)
                   result)
               (xf result input))))))))
   ([coll] (sequence (xduce-rm&rm-l100) coll)))
 
 (defn quick-n-dirty [em-recs]
   (->> em-recs
-       (remove #(< 0.26 (:spam-score %)) )
+       (remove #(< 0.15 (:spam-score %)) )
        (distinct-by :email-address)
-       (xduce-rm&rm-l100)))
+       (partition-all 10000)
+       (mapcat xduce-rm&rm-l100)
+       (flatten)))
 
 
 (comment
   ;; REPL stuff
   (def data (d-g/n-thousand-email-records 50))
-
+  (def rdata (d-g/n-thousand-reg-em-recs 50))
 
 
 
