@@ -68,7 +68,7 @@
 
 (defn stateful-xducer-method [em-recs]
   (->> em-recs
-       (remove #(< 0.3 (:spam-score %)) )
+       (remove #(< 0.2 (:spam-score %)))
        (distinct-by :email-address)
        (xduce-rm&rm-l100)))
 

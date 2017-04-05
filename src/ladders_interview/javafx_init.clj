@@ -1,5 +1,5 @@
 (ns ladders-interview.javafx-init
-  (:require [fn-fx-ui.core :as core])
+  (:require [ladders-interview.core :as core])
   (:gen-class
     :extends javafx.application.Application))
 

@@ -7,7 +7,7 @@
                  [org.clojure/test.check "0.9.0"]
                  [org.clojure/core.async "0.3.442"]
                  [medley "0.8.4"]
-                 [halgari/fn-fx "0.3.0-SNAPSHOT"]
+                 [halgari/fn-fx "0.2.0"]
                  [org.clojure/data.csv "0.1.3"]]
   :main ladders-interview.javafx-init
   :aot [ladders-interview.javafx-init]
