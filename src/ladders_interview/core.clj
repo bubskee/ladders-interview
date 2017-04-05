@@ -15,8 +15,6 @@
 (defn mean [xs]
   (/ (reduce + xs) (.size xs)))
 
-(def filter-high-spam
-  (filter #(< 0.25 (:spam-score %))))
 
 (defn queue-100-step [q n]
   (if (< (.size q) 100)
@@ -39,13 +37,13 @@
           (let [last100 @l-hund!
                 r-total @running-total!
                 r-count @running-count!
-                new-last100 (queue-100-step last100 input)
+                new-last100 (queue-100-step last100 (:spam-score input))
                 new-r-count (inc r-count)
-                new-r-total (+ r-total input)]
+                new-r-total (+ r-total (:spam-score input))]
             (if
-              (and (> 0.1 (mean new-last100)
-                      (> 0.05 (/ new-r-total
-                                 new-r-count))))
+              (and (< 0.1 (mean new-last100))
+                   (< 0.05 (/ new-r-total
+                              new-r-count)))
               (do (vreset! l-hund! new-last100)
                   (vreset! running-total! new-r-total)
                   (vreset! running-count! new-r-count)
@@ -55,10 +53,9 @@
 
 (defn quick-n-dirty [em-recs]
   (->> em-recs
-       (filter-high-spam)
+       (remove #(< 0.26 (:spam-score %)) )
        (distinct-by :email-address)
-       (xduce-rm&rm-l100)
-       (take 200)))
+       (xduce-rm&rm-l100)))
 
 
 (comment
