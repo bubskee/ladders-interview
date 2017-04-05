@@ -37,6 +37,7 @@
 
 ;; extending spec for more regular data
 ;; completely regular data follows
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
  (s/def ::spam-score1d20
    (s/double-in :min 0 :max 0.05))
@@ -98,4 +99,142 @@
 (s/def ::spam-score20d20
   (s/double-in :min 0.95 :max 1))
 
-;;
+(s/def ::email-record1d20
+  (s/keys :req-un [::email-address ::spam-score1d20]))
+
+(s/def ::email-record2d20
+  (s/keys :req-un [::email-address ::spam-score2d20]))
+
+(s/def ::email-record3d20
+  (s/keys :req-un [::email-address ::spam-score3d20]))
+
+(s/def ::email-record4d20
+  (s/keys :req-un [::email-address ::spam-score4d20]))
+
+(s/def ::email-record5d20
+  (s/keys :req-un [::email-address ::spam-score5d20]))
+
+(s/def ::email-record6d20
+  (s/keys :req-un [::email-address ::spam-score6d20]))
+
+(s/def ::email-record7d20
+  (s/keys :req-un [::email-address ::spam-score7d20]))
+
+(s/def ::email-record8d20
+  (s/keys :req-un [::email-address ::spam-score8d20]))
+
+(s/def ::email-record9d20
+  (s/keys :req-un [::email-address ::spam-score9d20]))
+
+(s/def ::email-record10d20
+  (s/keys :req-un [::email-address ::spam-score10d20]))
+
+(s/def ::email-record11d20
+  (s/keys :req-un [::email-address ::spam-score11d20]))
+
+(s/def ::email-record12d20
+  (s/keys :req-un [::email-address ::spam-score12d20]))
+
+(s/def ::email-record13d20
+  (s/keys :req-un [::email-address ::spam-score13d20]))
+
+(s/def ::email-record14d20
+  (s/keys :req-un [::email-address ::spam-score14d20]))
+
+(s/def ::email-record15d20
+  (s/keys :req-un [::email-address ::spam-score15d20]))
+
+(s/def ::email-record16d20
+  (s/keys :req-un [::email-address ::spam-score16d20]))
+
+(s/def ::email-record17d20
+  (s/keys :req-un [::email-address ::spam-score17d20]))
+
+(s/def ::email-record18d20
+  (s/keys :req-un [::email-address ::spam-score18d20]))
+
+(s/def ::email-record19d20
+  (s/keys :req-un [::email-address ::spam-score19d20]))
+
+(s/def ::email-record20d20
+  (s/keys :req-un [::email-address ::spam-score20d20]))
+
+ (s/def ::20-regular-distrib-em-recs
+   (s/tuple ::email-record1d20
+            ::email-record2d20
+            ::email-record3d20
+            ::email-record4d20
+            ::email-record5d20
+            ::email-record6d20
+            ::email-record7d20
+            ::email-record8d20
+            ::email-record9d20
+            ::email-record10d20
+            ::email-record11d20
+            ::email-record12d20
+            ::email-record13d20
+            ::email-record14d20
+            ::email-record15d20
+            ::email-record16d20
+            ::email-record17d20
+            ::email-record18d20
+            ::email-record19d20
+            ::email-record20d20))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; and a fn for generation
+
+(defn normalize-spam-kw
+  [{:keys [email-address
+           spam-score1d20
+           spam-score2d20
+           spam-score3d20
+           spam-score4d20
+           spam-score5d20
+           spam-score6d20
+           spam-score7d20
+           spam-score8d20
+           spam-score9d20
+           spam-score10d20
+           spam-score11d20
+           spam-score12d20
+           spam-score13d20
+           spam-score14d20
+           spam-score15d20
+           spam-score16d20
+           spam-score17d20
+           spam-score18d20
+           spam-score19d20
+           spam-score20d20]}]
+  {:email-address email-address
+   :spam-score (cond
+                 spam-score1d20 spam-score1d20
+                 spam-score2d20 spam-score2d20
+                 spam-score3d20 spam-score3d20
+                 spam-score4d20 spam-score4d20
+                 spam-score5d20 spam-score5d20
+                 spam-score6d20 spam-score6d20
+                 spam-score7d20 spam-score7d20
+                 spam-score8d20 spam-score8d20
+                 spam-score9d20 spam-score9d20
+                 spam-score10d20 spam-score10d20
+                 spam-score11d20 spam-score11d20
+                 spam-score12d20 spam-score12d20
+                 spam-score13d20 spam-score13d20
+                 spam-score14d20 spam-score14d20
+                 spam-score15d20 spam-score15d20
+                 spam-score16d20 spam-score16d20
+                 spam-score17d20 spam-score17d20
+                 spam-score18d20 spam-score18d20
+                 spam-score19d20 spam-score19d20
+                 spam-score20d20 spam-score20d20
+                 )})
+
+(defn n-thousand-reg-em-recs [^Integer n]
+  "takes a number, n, returns a list of precisely n-thousand email records"
+  (->> (for [x (range (* 50 n))]
+         (gen/generate (s/gen ::20-regular-distrib-em-recs)))
+       (flatten)
+       (map normalize-spam-kw)))
+
+
