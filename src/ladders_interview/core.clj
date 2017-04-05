@@ -21,15 +21,17 @@
     (conj q n)
     (conj (pop q) n)))
 
+;; stateful xducer method
+
 (defn xduce-rm&rm-l100
   "stateful transducer which filters em-recs based on running mean of their :spam-score
 
   considers both the total running mean, and the running mean of the last 100 items"
   ([]
    (fn [xf]
-     (let [l-hund! (atom clojure.lang.PersistentQueue/EMPTY)
-           running-total! (atom 0)
-           running-count! (atom 0)]
+     (let [l-hund! (volatile! clojure.lang.PersistentQueue/EMPTY)
+           running-total! (volatile! 0)
+           running-count! (volatile! 0)]
        (fn
          ([] (xf))
          ([result] (xf result))
@@ -42,24 +44,26 @@
                 new-r-total (+ r-total (:spam-score input))]
             (if
               (and
-                (< 0.05 (/ new-r-total
-                          new-r-count))
-                (< 0.1 (mean new-last100))
-                   )
-              (do (reset! l-hund! new-last100)
-                  (reset! running-total! new-r-total)
-                  (reset! running-count! new-r-count)
+                (< 0.04 (/ new-r-total
+                           new-r-count))
+                (< 0.9 (mean new-last100))
+                )
+              (do (vreset! l-hund! new-last100)
+                  (vreset! running-total! new-r-total)
+                  (vreset! running-count! new-r-count)
                   result)
               (xf result input))))))))
   ([coll] (sequence (xduce-rm&rm-l100) coll)))
 
-(defn quick-n-dirty [em-recs]
+(defn stateful-xducer-method [em-recs]
   (->> em-recs
-       (remove #(< 0.15 (:spam-score %)) )
+       (remove #(< 0.3 (:spam-score %)) )
        (distinct-by :email-address)
-       (partition-all 10000)
-       (mapcat xduce-rm&rm-l100)
-       (flatten)))
+       (xduce-rm&rm-l100)))
+
+;;-------------------------------------------------------------------
+
+;; core.async pipeline method
 
 
 (comment
@@ -77,18 +81,6 @@
 
 
   ;; scratchpad
-
-  (defn running-means-check [l100-vol total-vol {spam-score :spam-score }]
-    (let [old-l100 (:last100 @l100-vol)
-          new-l100 (queue-100-step old-l100 spam-score)
-          new-l100-rm (mean new-l100)
-          old-totals @total-vol
-          new-total-count (inc (:total-count old-totals))
-          new-total-spam (+ spam-score
-                            (:total-spam old-totals))
-          new-total-rm (/ new-total-spam
-                          new-total-count)]
-      ))
 
 
   )
