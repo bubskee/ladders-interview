@@ -88,6 +88,7 @@
                 ;; after some REPL investigation, this is apparently not faster than the 3vol
                 ;; version. this surprises me because I was under the impression that dereffing
                 ;; was relatively expensive...
+                ;; explain this to me? map creation dominates volatile deref?
                 new-last100 (queue-100-step last100 (:spam-score input))
                 new-r-count (inc r-count)
                 new-r-total (+ r-total (:spam-score input))]
@@ -265,9 +266,7 @@
                         (swap! data-state handle-event event)
                         (catch Throwable exception
                           (println exception))))
-         ui-state (agent (fx-dom/app (stage @data-state) handler-fn))
-         process-state (agent )]
-
+         ui-state (agent (fx-dom/app (stage @data-state) handler-fn))]
      (add-watch data-state :ui (fn [_ _ _ _]
                                  (send ui-state
                                        (fn [old-ui]
@@ -278,20 +277,40 @@
 
 (comment
   ;; REPL stuff
-  (def data (d-g/n-thousand-email-records 50))
-  (def rdata (d-g/n-thousand-reg-em-recs 50))
 
 
+  (do
+    (def data (d-g/n-thousand-email-records 100))
+    (def rdata (d-g/n-thousand-reg-em-recs 100))
+    (time (println (count data)
+                   "given spec"))
+    (time (println (count rdata)
+                   "ext spec"))
+    (println "-----")
+    (println "---single volatile xduc:")
+    (time (xd-1v-rm&rm-l100 rdata))
+    (println "---triple volatile xduc:")
+    (time (xduce-rm&rm-l100 rdata))
 
 
-  (->> data
-       (remove high-spam?)
-       (map :spam-score)
-       (mean))
+    (println "---email-processing:")
+    (println "---given spec data:")
+    (println (count (stateful-xducer-method data)))
+    (println "---ext spec data:")
+    (println (count (stateful-xducer-method rdata)))
+
+    )
 
 
   ;; scratchpad
 
+  (def data (d-g/n-thousand-email-records 50))
+  (def rdata (d-g/n-thousand-reg-em-recs 50))
+
+  (->> data
+       (remove #(< 0.2 (:spam-score %)))
+       (map :spam-score)
+       (mean))
 
   )
 
