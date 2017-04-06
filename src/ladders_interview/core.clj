@@ -26,7 +26,6 @@
 (defn mean [xs]
   (/ (reduce + xs) (.size xs)))
 
-
 (defn queue-100-step [q n]
   (if (< (.size q) 100)
     (conj q n)
@@ -43,6 +42,9 @@
      (let [l-hund! (volatile! clojure.lang.PersistentQueue/EMPTY)
            running-total! (volatile! 0)
            running-count! (volatile! 0)]
+       ;; at three volatiles, this is the *most* stateful xducer I have written
+       ;; and I just realized that I could use one volatile map, and not
+       ;; need to deref and vreset three times each step. doh.
        (fn
          ([] (xf))
          ([result] (xf result))
@@ -57,11 +59,46 @@
               (and
                 (< 0.04 (/ new-r-total
                            new-r-count))
-                (< 0.9 (mean new-last100))
-                )
+                (< 0.9 (mean new-last100)))
               (do (vreset! l-hund! new-last100)
                   (vreset! running-total! new-r-total)
                   (vreset! running-count! new-r-count)
+                  result)
+              (xf result input))))))))
+  ([coll] (sequence (xduce-rm&rm-l100) coll)))
+
+(defn xd-1v-rm&rm-l100
+  "stateful transducer which filters em-recs based on running mean of their :spam-score
+
+  considers both the total running mean, and the running mean of the last 100 items
+
+  one volatile version"
+  ([]
+   (fn [xf]
+     (let [rm-v (volatile! {:l-hund        clojure.lang.PersistentQueue/EMPTY
+                            :running-total 0
+                            :running-count 0})]
+       (fn
+         ([] (xf))
+         ([result] (xf result))
+         ([result input]
+          (let [{last100 :l-hund
+                 r-total :running-total
+                 r-count :running-count} @rm-v
+                ;; after some REPL investigation, this is apparently not faster than the 3vol
+                ;; version. this surprises me because I was under the impression that dereffing
+                ;; was relatively expensive...
+                new-last100 (queue-100-step last100 (:spam-score input))
+                new-r-count (inc r-count)
+                new-r-total (+ r-total (:spam-score input))]
+            (if
+              (and
+                (< 0.04 (/ new-r-total
+                           new-r-count))
+                (< 0.9 (mean new-last100)))
+              (do (vreset! rm-v {:l-hund new-last100
+                                 :running-total new-r-count
+                                 :running-count new-r-total})
                   result)
               (xf result input))))))))
   ([coll] (sequence (xduce-rm&rm-l100) coll)))
@@ -76,10 +113,14 @@
 
 ;; core.async method
 
+;; TODO
+
 ;;-----------------------------------------------------------------------------
 
 ;; GUI building
-
+;; almost all of this code is shamelessly stolen from:
+;; http://nils-blum-oeste.net/functional-gui-programming-with-clojure-and-javafx-meet-halgarifn-fx/
+;; If I have seen further, it is by standing on the shoulders of giants.
 
 (defn cell-value-factory [f]
   (reify javafx.util.Callback
@@ -102,7 +143,7 @@
                             (first data))
                  :items (rest data)
                  :placeholder (controls/label
-                                :text "Import some data first"))))
+                                :text "Metrics will show here."))))
 
 (defn data->series [data]
   (if (some? data)
@@ -138,7 +179,7 @@
 (defui Stage
        (render [this {:keys [root-stage? data options] :as state}]
                (controls/stage
-                 :title "fn-fx-ui"
+                 :title "ladders-interview-ui"
                  :on-close-request (force-exit root-stage?)
                  :shown true
                  :scene (controls/scene
@@ -147,21 +188,42 @@
                                          :padding (javafx.geometry.Insets. 15 12 15 12)
                                          :spacing 10
                                          :alignment (javafx.geometry.Pos/CENTER)
-                                         :children [(controls/button
-                                                      :text "Import CSV"
-                                                      :on-action {:event :import-csv
-                                                                  :fn-fx/include {:fn-fx/event #{:target}}})
-                                                    (controls/check-box
-                                                      :text "Import first row as headers"
+                                         :children [(controls/check-box
+                                                      :text "Use extended spec?"
                                                       :selected (get-in options [:csv :first-row-headers])
                                                       :on-action {:event :toggle-option
                                                                   :path [:csv :first-row-headers]})
-                                                    (controls/button
-                                                      :text "Reset"
-                                                      :on-action {:event :reset})])
-                                  :center (controls/v-box
-                                            :children [(table {:data data})
-                                                       (plot {:data data})]))))))
+
+                                                    (controls/h-box
+                                                      :spacing 10
+                                                      :alignment :bottom-right
+                                                      :children [(controls/text-field
+                                                                   :id :n-thousand-em-box
+                                                                   :grid-pane/column-index 1
+                                                                   :grid-pane/row-index 1)
+                                                                 (controls/button :text "Generate Emails"
+                                                                            :on-action {:event :auth
+                                                                                        :fn-fx/include {:n-thousand-em-box #{:text}}})
+                                                                 (controls/button
+                                                                   :text "Process Emails"
+                                                                   :on-action {:event :import-csv
+                                                                               :fn-fx/include {:fn-fx/event #{:target}}})
+                                                                 (controls/button
+                                                                   :text "Send Emails"
+                                                                   :on-action {:event :import-csv
+                                                                               :fn-fx/include {:fn-fx/event #{:target}}})
+                                                                 (controls/button
+                                                                   :text "Reset"
+                                                                   :on-action {:event :reset})]
+                                                      :grid-pane/column-index 1
+                                                      :grid-pane/row-index 4)
+
+                                                    ])
+                                  :bottom (controls/h-box
+                                            :padding (javafx.geometry.Insets. 15 12 15 12)
+                                            :spacing 10
+                                            :alignment (javafx.geometry.Pos/CENTER)
+                                            :children [(table {:data data})]))))))
 
 (defmulti handle-event (fn [_ {:keys [event]}]
                          event))
@@ -203,7 +265,8 @@
                         (swap! data-state handle-event event)
                         (catch Throwable exception
                           (println exception))))
-         ui-state (agent (fx-dom/app (stage @data-state) handler-fn))]
+         ui-state (agent (fx-dom/app (stage @data-state) handler-fn))
+         process-state (agent )]
 
      (add-watch data-state :ui (fn [_ _ _ _]
                                  (send ui-state
