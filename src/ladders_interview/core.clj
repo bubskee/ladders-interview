@@ -41,72 +41,48 @@
    (fn [xf]
      (let [l-hund! (volatile! clojure.lang.PersistentQueue/EMPTY)
            running-total! (volatile! 0)
-           running-count! (volatile! 0)]
-       ;; at three volatiles, this is the *most* stateful xducer I have written
-       ;; and I just realized that I could use one volatile map, and not
-       ;; need to deref and vreset three times each step. doh.
+           running-count! (volatile! 0)
+           l-hund-total! (volatile! 0)]
        (fn
          ([] (xf))
          ([result] (xf result))
          ([result input]
           (let [last100 @l-hund!
+                last100-total @l-hund-total!
                 r-total @running-total!
                 r-count @running-count!
-                new-last100 (queue-100-step last100 (:spam-score input))
+                sp-sco (:spam-score input)
                 new-r-count (inc r-count)
-                new-r-total (+ r-total (:spam-score input))]
+                gt-99? (> r-count 99)
+                new-r-total (+ r-total sp-sco)
+                new-last100-total (if gt-99?
+                                    (+ sp-sco last100-total (- (peek last100)))
+                                    new-r-total)
+                new-last100 (if gt-99? (conj (pop last100) sp-sco)
+                                       (conj last100 sp-sco))]
             (if
               (and
-                (< 0.04 (/ new-r-total
+                ;; running mean less than 0.05
+                (> 0.05 (/ new-r-total
                            new-r-count))
-                (< 0.9 (mean new-last100)))
-              (do (vreset! l-hund! new-last100)
-                  (vreset! running-total! new-r-total)
-                  (vreset! running-count! new-r-count)
-                  result)
-              (xf result input))))))))
+                ;; l100 running mean less than 0.1
+                (if gt-99?
+                  (> 0.1 (/ new-last100-total 100))
+                  true)
+                )
+              (do
+                (vreset! l-hund! new-last100)
+                (vreset! running-total! new-r-total)
+                (vreset! running-count! new-r-count)
+                (xf result input))
+              result
+              )))))))
   ([coll] (sequence (xduce-rm&rm-l100) coll)))
 
-(defn xd-1v-rm&rm-l100
-  "stateful transducer which filters em-recs based on running mean of their :spam-score
-
-  considers both the total running mean, and the running mean of the last 100 items
-
-  one volatile version"
-  ([]
-   (fn [xf]
-     (let [rm-v (volatile! {:l-hund        clojure.lang.PersistentQueue/EMPTY
-                            :running-total 0
-                            :running-count 0})]
-       (fn
-         ([] (xf))
-         ([result] (xf result))
-         ([result input]
-          (let [{last100 :l-hund
-                 r-total :running-total
-                 r-count :running-count} @rm-v
-                ;; after some REPL investigation, this is apparently not faster than the 3vol
-                ;; version. this surprises me because I was under the impression that dereffing
-                ;; was relatively expensive...
-                ;; explain this to me? map creation dominates volatile deref?
-                new-last100 (queue-100-step last100 (:spam-score input))
-                new-r-count (inc r-count)
-                new-r-total (+ r-total (:spam-score input))]
-            (if
-              (and
-                (< 0.04 (/ new-r-total
-                           new-r-count))
-                (< 0.9 (mean new-last100)))
-              (do (vreset! rm-v {:l-hund new-last100
-                                 :running-total new-r-count
-                                 :running-count new-r-total})
-                  result)
-              (xf result input))))))))
-  ([coll] (sequence (xduce-rm&rm-l100) coll)))
 
 (defn stateful-xducer-method [em-recs]
   (->> em-recs
-       (remove #(< 0.2 (:spam-score %)))
+       (remove #(< 0.3 (:spam-score %)))
        (distinct-by :email-address)
        (xduce-rm&rm-l100)))
 
@@ -280,37 +256,11 @@
 
 
   (do
-    (def data (d-g/n-thousand-email-records 100))
-    (def rdata (d-g/n-thousand-reg-em-recs 100))
-    (time (println (count data)
-                   "given spec"))
-    (time (println (count rdata)
-                   "ext spec"))
     (println "-----")
-    (println "---single volatile xduc:")
-    (time (xd-1v-rm&rm-l100 rdata))
     (println "---triple volatile xduc:")
-    (time (xduce-rm&rm-l100 rdata))
-
-
+    (time (count (xduce-rm&rm-l100 (d-g/n-thousand-reg-em-recs 300))))
     (println "---email-processing:")
     (println "---given spec data:")
-    (println (count (stateful-xducer-method data)))
-    (println "---ext spec data:")
-    (println (count (stateful-xducer-method rdata)))
-
-    )
-
-
-  ;; scratchpad
-
-  (def data (d-g/n-thousand-email-records 50))
-  (def rdata (d-g/n-thousand-reg-em-recs 50))
-
-  (->> data
-       (remove #(< 0.2 (:spam-score %)))
-       (map :spam-score)
-       (mean))
-
+    (println (count (stateful-xducer-method (d-g/n-thousand-reg-em-recs 300)))))
   )
 
