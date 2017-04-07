@@ -23,14 +23,6 @@
 ;;    above 0.1.
 
 
-(defn mean [xs]
-  (/ (reduce + xs) (.size xs)))
-
-(defn queue-100-step [q n]
-  (if (< (.size q) 100)
-    (conj q n)
-    (conj (pop q) n)))
-
 ;; stateful xducer method
 
 (defn xduce-rm&rm-l100
@@ -67,13 +59,14 @@
                            new-r-count))
                 ;; l100 running mean less than 0.1
                 (if gt-99?
-                  (> 0.1 (/ new-last100-total 100))
+                  (> 0.09 (/ new-last100-total 100))
                   true)
                 )
               (do
                 (vreset! l-hund! new-last100)
                 (vreset! running-total! new-r-total)
                 (vreset! running-count! new-r-count)
+                (vreset! l-hund-total! new-last100-total)
                 (xf result input))
               result
               )))))))
@@ -82,7 +75,7 @@
 
 (defn stateful-xducer-method [em-recs]
   (->> em-recs
-       (remove #(< 0.3 (:spam-score %)))
+       (remove #(< 0.2 (:spam-score %)))
        (distinct-by :email-address)
        (xduce-rm&rm-l100)))
 
@@ -257,10 +250,10 @@
 
   (do
     (println "-----")
-    (println "---triple volatile xduc:")
-    (time (count (xduce-rm&rm-l100 (d-g/n-thousand-reg-em-recs 300))))
-    (println "---email-processing:")
-    (println "---given spec data:")
-    (println (count (stateful-xducer-method (d-g/n-thousand-reg-em-recs 300)))))
+    (time (println (count (xduce-rm&rm-l100 (d-g/n-thousand-reg-em-recs 100)))))
+    (println (count (stateful-xducer-method (d-g/n-thousand-reg-em-recs 100))))
+    (take 10 (stateful-xducer-method (d-g/n-thousand-reg-em-recs 10))))
+
+
   )
 
